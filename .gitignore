@@ -1,0 +1,27 @@
+# .NET Core
+bin/
+obj/
+*.csproj.user
+*.suo
+*.cache
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual Studio
+.vs/
+.vscode/
+.idea/
+
+# NuGet Packages
+*.nupkg
+packages/
+
+# Build output
+[Bb]in/
+[Oo]bj/
+
+# Other
+*.log
+*.bak
+*.tmp
