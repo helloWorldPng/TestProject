@@ -1,86 +1,82 @@
-﻿﻿using NUnit.Framework;
+﻿using EpamTests.PageObjects;
+using NUnit.Framework;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
-using OpenQA.Selenium.Interactions;
 using OpenQA.Selenium.Support.UI;
-using SeleniumExtras.WaitHelpers;
 using System;
-using WebDriverManager;
-using WebDriverManager.DriverConfigs.Impl;
-using System.Collections.Generic;
+using System.IO;
 
-namespace TestProject1
+namespace EpamTests.Tests
 {
-    [TestFixture]
     public class EpamSearchTests
     {
-        private IWebDriver driver;
-        private WebDriverWait wait;
+        private IWebDriver _driver;
+        private WebDriverWait _wait;
+        private string _downloadPath;
 
         [SetUp]
-        public void SetUp()
+        public void Setup()
         {
-            new DriverManager().SetUpDriver(new ChromeConfig());
+            _downloadPath = Path.Combine(Directory.GetCurrentDirectory(), "Downloads");
+            if (!Directory.Exists(_downloadPath))
+            {
+                Directory.CreateDirectory(_downloadPath);
+            }
 
             var options = new ChromeOptions();
-            driver = new ChromeDriver(options);
+            options.AddUserProfilePreference("download.default_directory", _downloadPath);
+            options.AddUserProfilePreference("download.prompt_for_download", false);
 
-            driver.Manage().Window.Maximize();
+            _driver = new ChromeDriver(options);
+            _driver.Manage().Window.Maximize();
+            _wait = new WebDriverWait(_driver, TimeSpan.FromSeconds(60)); // Increased timeout
+        }
 
-            driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(5);
+        [Test]
+        public void ValidateFileDownload([Values("EPAM_Systems_Company_Overview.pdf")] string expectedFileName)
+        {
+            Console.WriteLine("Starting file download test...");
+            var homePage = new EpamHomePage(_driver, _wait);
+            _driver.Navigate().GoToUrl("https://www.epam.com");
+            _wait.Until(d => ((IJavaScriptExecutor)d).ExecuteScript("return document.readyState").Equals("complete"));
+            Console.WriteLine("Initial page loaded. URL: " + _driver.Url);
+            homePage.HandleCookiePopup();
 
-            wait = new WebDriverWait(driver, TimeSpan.FromSeconds(10));
+            var aboutPage = homePage.GoToAboutPage();
+            aboutPage.ScrollToEpamAtAGlance();
+            Console.WriteLine("Clicking download button...");
+            aboutPage.ClickDownloadButton();
+
+            string filePath = Path.Combine(_downloadPath, expectedFileName);
+            try
+            {
+                Console.WriteLine($"Waiting for file: {filePath}");
+                _wait.Until(_ => File.Exists(filePath));
+                Assert.IsTrue(File.Exists(filePath), $"File '{expectedFileName}' should be downloaded.");
+                Console.WriteLine($"File downloaded successfully: {filePath}");
+            }
+            catch (WebDriverTimeoutException)
+            {
+                Console.WriteLine($"File '{expectedFileName}' was not downloaded within 60 seconds.");
+                Assert.Fail($"File '{expectedFileName}' was not downloaded within 60 seconds.");
+            }
         }
 
         [TearDown]
         public void TearDown()
         {
-            driver?.Quit();
-            driver = null;
-        }
-
-        [Test]
-        public void OpenGoogleThenSearchEpamAndSearchAI()
-        {
-            // 1. Открыть Google
-            driver.Navigate().GoToUrl("https://www.google.com");
-
-            // Можно добавить ожидание, например ожидание появления поля поиска Google
-            wait.Until(ExpectedConditions.ElementIsVisible(By.Name("q")));
-
-            // 2. Увеличить окно (если не сделали в SetUp)
-            driver.Manage().Window.Maximize();
-
-            // 3. Перейти на epam.com
-            driver.Navigate().GoToUrl("https://www.epam.com");
-
-            // 4. Найти кнопку поиска (иконку лупы) и кликнуть
-            var searchIcon = wait.Until(ExpectedConditions.ElementToBeClickable(By.CssSelector(".search-icon.dark-icon.header-search__search-icon")));
-            searchIcon.Click();
-
-            // 5. Дождаться появления панели поиска
-            var searchPanel = wait.Until(ExpectedConditions.ElementIsVisible(By.CssSelector(".header-search__panel")));
-
-            // 6. Найти поле ввода поиска внутри панели
-            var searchInput = searchPanel.FindElement(By.Name("q"));
-
-            // 7. Ввести "AI"
-            new Actions(driver)
-                .Click(searchInput)
-                .Pause(TimeSpan.FromSeconds(1))
-                .SendKeys("AI")
-                .Perform();
-
-            // 8. Найти кнопку поиска рядом с полем и кликнуть
-            var inputHolder = wait.Until(ExpectedConditions.ElementIsVisible(
-                By.CssSelector("div.search-results__input-holder")
-            ));
-
-            var findButton = inputHolder.FindElement(By.XPath("./following-sibling::button"));
-            ((IJavaScriptExecutor)driver).ExecuteScript("arguments[0].scrollIntoView(true);", findButton);
-            wait.Until(ExpectedConditions.ElementToBeClickable(findButton)).Click();
-
-            Assert.Pass("Search for 'AI' completed and results are visible.");
+            _driver?.Quit();
+            if (Directory.Exists(_downloadPath))
+            {
+                try
+                {
+                    Directory.Delete(_downloadPath, true);
+                }
+                catch (IOException ex)
+                {
+                    Console.WriteLine($"Could not delete download directory: {ex.Message}");
+                }
+            }
         }
     }
 }
