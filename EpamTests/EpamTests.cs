@@ -62,6 +62,29 @@ namespace EpamTests.Tests
             }
         }
 
+        [Test]
+        public void ValidateServicesNavigation([Values("Generative AI", "Responsible AI")] string serviceCategory)
+        {
+            Console.WriteLine($"Starting services navigation test for {serviceCategory}...");
+            var homePage = new EpamHomePage(_driver, _wait);
+            _driver.Navigate().GoToUrl("https://www.epam.com");
+            _wait.Until(d => ((IJavaScriptExecutor)d).ExecuteScript("return document.readyState").Equals("complete"));
+            Console.WriteLine("Initial page loaded. URL: " + _driver.Url);
+            homePage.HandleCookiePopup();
+
+            var servicesMenu = _wait.Until(ExpectedConditions.ElementToBeClickable(By.LinkText("Services")));
+            new Actions(_driver).MoveToElement(servicesMenu).Perform();
+            var categoryLink = _wait.Until(ExpectedConditions.ElementToBeClickable(By.LinkText(serviceCategory)));
+            categoryLink.Click();
+            _wait.Until(ExpectedConditions.UrlContains(serviceCategory.Replace(" ", "-").ToLower()));
+
+            var servicesPage = new EpamServicesPage(_driver, _wait);
+            string expectedTitle = serviceCategory == "Generative AI" ? "Generative AI Services at EPAM" : "Responsible AI Services at EPAM";
+            Assert.AreEqual(expectedTitle, servicesPage.GetPageTitle(), $"Page title should be '{expectedTitle}'.");
+            Assert.IsTrue(servicesPage.IsOurRelatedExpertiseSectionDisplayed(), "Our Related Expertise section should be displayed.");
+            Console.WriteLine($"Successfully navigated to {serviceCategory} page. Title: {servicesPage.GetPageTitle()}");
+        }
+
         [TearDown]
         public void TearDown()
         {
